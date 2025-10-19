@@ -1,0 +1,18 @@
+name: Node.js CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    uses: your-username/github-actions-templates/.github/workflows/ci.yml@main
+    with:
+      node-version: '18'
+    secrets: inherit
+
+  security:
+    uses: your-username/github-actions-templates/.github/workflows/security-scan.yml@main
+    secrets: inherit

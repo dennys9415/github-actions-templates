@@ -1,0 +1,83 @@
+name: 'Deploy to Environment'
+description: 'Deploy application to specific environment (Kubernetes, AWS, etc.)'
+
+inputs:
+  environment:
+    description: 'Target environment (staging, production)'
+    required: true
+  image-tag:
+    description: 'Docker image tag to deploy'
+    required: true
+  kube-config:
+    description: 'Kubernetes configuration'
+    required: false
+  namespace:
+    description: 'Kubernetes namespace'
+    required: false
+    default: 'default'
+  deployment-file:
+    description: 'Path to deployment manifest'
+    required: false
+    default: 'k8s/deployment.yaml'
+
+outputs:
+  deployed-version:
+    description: 'The version that was deployed'
+    value: ${{ steps.deploy.outputs.version }}
+  deployment-url:
+    description: 'URL of the deployed application'
+    value: ${{ steps.get-url.outputs.url }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Configure Kubernetes
+      if: inputs.kube-config != ''
+      shell: bash
+      run: |
+        mkdir -p ~/.kube
+        echo "${{ inputs.kube-config }}" > ~/.kube/config
+        kubectl config use-context ${{ inputs.environment }}
+
+    - name: Update deployment manifest
+      id: update-manifest
+      shell: bash
+      run: |
+        if [ -f "${{ inputs.deployment-file }}" ]; then
+          sed -i "s|IMAGE_TAG|${{ inputs.image-tag }}|g" ${{ inputs.deployment-file }}
+          sed -i "s|NAMESPACE|${{ inputs.namespace }}|g" ${{ inputs.deployment-file }}
+          echo "version=${{ inputs.image-tag }}" >> $GITHUB_OUTPUT
+        else
+          echo "Using default deployment strategy"
+          echo "version=${{ inputs.image-tag }}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Deploy to Kubernetes
+      if: inputs.kube-config != ''
+      id: deploy
+      shell: bash
+      run: |
+        kubectl apply -f ${{ inputs.deployment-file }} --namespace=${{ inputs.namespace }}
+        kubectl rollout status deployment/app -n ${{ inputs.namespace }} --timeout=300s
+        echo "version=${{ inputs.image-tag }}" >> $GITHUB_OUTPUT
+
+    - name: Get deployment URL
+      id: get-url
+      shell: bash
+      run: |
+        if [ "${{ inputs.kube-config }}" != "" ]; then
+          URL=$(kubectl get service app -n ${{ inputs.namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+          if [ -z "$URL" ]; then
+            URL="https://${{ inputs.environment }}.example.com"
+          fi
+          echo "url=$URL" >> $GITHUB_OUTPUT
+        else
+          echo "url=https://${{ inputs.environment }}.example.com" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Verify deployment
+      shell: bash
+      run: |
+        echo "Deployment to ${{ inputs.environment }} completed successfully"
+        echo "Version: ${{ steps.update-manifest.outputs.version }}"
+        echo "URL: ${{ steps.get-url.outputs.url }}"

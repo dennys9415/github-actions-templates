@@ -1,0 +1,68 @@
+name: 'Notify Team'
+description: 'Send notifications to various platforms (Slack, Discord, Email)'
+
+inputs:
+  status:
+    description: 'Status of the notification (success, failure, cancelled, warning)'
+    required: true
+  message:
+    description: 'Main message to send'
+    required: true
+  webhook-url:
+    description: 'Webhook URL for Slack/Discord'
+    required: false
+  channel:
+    description: 'Channel to send notification to'
+    required: false
+  platform:
+    description: 'Platform to notify (slack, discord, email)'
+    required: false
+    default: 'slack'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Notify Slack
+      if: inputs.platform == 'slack' && inputs.webhook-url != ''
+      uses: slackapi/slack-github-action@v1.24.0
+      with:
+        channel-id: ${{ inputs.channel }}
+        slack-message: |
+          :${{ inputs.status == 'success' && 'white_check_mark' : inputs.status == 'failure' && 'x' : inputs.status == 'cancelled' && 'warning' : 'information_source' }}: ${{ inputs.message }}
+          Repository: ${{ github.repository }}
+          Workflow: ${{ github.workflow }}
+          Commit: ${{ github.sha }}
+          By: ${{ github.actor }}
+        webhook-url: ${{ inputs.webhook-url }}
+
+    - name: Notify Discord
+      if: inputs.platform == 'discord' && inputs.webhook-url != ''
+      uses: Ilshidur/action-discord@0.3.2
+      with:
+        webhook: ${{ inputs.webhook-url }}
+        message: |
+          **${{ inputs.status == 'success' && '✅ SUCCESS' : inputs.status == 'failure' && '❌ FAILURE' : inputs.status == 'cancelled' && '⚠️ CANCELLED' : 'ℹ️ WARNING' }}**
+          ${{ inputs.message }}
+          **Repository:** ${{ github.repository }}
+          **Workflow:** ${{ github.workflow }}
+          **Commit:** ${{ github.sha }}
+          **By:** ${{ github.actor }}
+
+    - name: Send email notification
+      if: inputs.platform == 'email'
+      uses: dawidd6/action-send-mail@v3
+      with:
+        server_address: ${{ secrets.SMTP_SERVER }}
+        server_port: ${{ secrets.SMTP_PORT }}
+        username: ${{ secrets.SMTP_USERNAME }}
+        password: ${{ secrets.SMTP_PASSWORD }}
+        subject: "GitHub Actions: ${{ github.workflow }} - ${{ inputs.status }}"
+        body: |
+          Workflow: ${{ github.workflow }}
+          Status: ${{ inputs.status }}
+          Message: ${{ inputs.message }}
+          Repository: ${{ github.repository }}
+          Commit: ${{ github.sha }}
+          Triggered by: ${{ github.actor }}
+          View run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        to: ${{ inputs.channel }}

@@ -1,0 +1,30 @@
+name: Python CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.9, 3.10, 3.11]
+
+    steps:
+    - name: Setup Environment
+      uses: your-username/github-actions-templates/.github/actions/setup-environment@main
+      with:
+        python-version: ${{ matrix.python-version }}
+        node-version: ''  # Disable Node.js for Python project
+
+    - name: Run tests with pytest
+      run: |
+        pytest --cov=./ --cov-report=xml
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml

@@ -1,0 +1,92 @@
+name: 'Setup Development Environment'
+description: 'Sets up a consistent development environment with common tools and caching'
+
+inputs:
+  node-version:
+    description: 'Node.js version'
+    required: false
+    default: '18'
+  python-version:
+    description: 'Python version'
+    required: false
+    default: '3.11'
+  install-deps:
+    description: 'Whether to install dependencies'
+    required: false
+    default: 'true'
+  cache-enabled:
+    description: 'Whether to enable caching'
+    required: false
+    default: 'true'
+
+outputs:
+  node-version:
+    description: 'The Node.js version that was set up'
+    value: ${{ steps.node-setup.outputs.node-version }}
+  python-version:
+    description: 'The Python version that was set up'
+    value: ${{ steps.python-setup.outputs.python-version }}
+  cache-hit:
+    description: 'Whether cache was restored'
+    value: ${{ steps.cache-deps.outputs.cache-hit }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      id: node-setup
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: ${{ inputs.cache-enabled && 'npm' || '' }}
+
+    - name: Setup Python
+      id: python-setup
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: ${{ inputs.cache-enabled && 'pip' || '' }}
+
+    - name: Cache dependencies
+      id: cache-deps
+      if: inputs.cache-enabled == 'true'
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.npm
+          ~/.cache/pip
+          **/node_modules
+          **/venv
+        key: ${{ runner.os }}-deps-${{ hashFiles('**/package-lock.json', '**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-deps-
+
+    - name: Install Node.js dependencies
+      if: inputs.install-deps == 'true' && steps.cache-deps.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        if [ -f "package.json" ]; then
+          npm ci
+        fi
+
+    - name: Install Python dependencies
+      if: inputs.install-deps == 'true' && steps.cache-deps.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        if [ -f "requirements.txt" ]; then
+          pip install -r requirements.txt
+        fi
+        if [ -f "pyproject.toml" ]; then
+          pip install -e .
+        fi
+
+    - name: Verify installations
+      shell: bash
+      run: |
+        echo "Node.js version: $(node --version)"
+        echo "npm version: $(npm --version)"
+        echo "Python version: $(python --version)"
+        echo "pip version: $(pip --version)"
