@@ -13,10 +13,13 @@ github-actions-templates/
 │   │   ├── security-scan.yml         # Security scanning template
 │   │   └── release.yml               # Release template
 │   ├── actions/
+│   │   ├── deploy-environment/       # Custom composite action
+│   │   │   ├── action.yml
+│   │   │   └── README.md
 │   │   ├── setup-environment/        # Custom composite action
 │   │   │   ├── action.yml
 │   │   │   └── README.md
-│   │   └── notify-team/              # Another composite action
+│   │   └── notify-team/              # Custom composite action
 │   │       ├── action.yml
 │   │       └── README.md
 │   └── ISSUE_TEMPLATE/
